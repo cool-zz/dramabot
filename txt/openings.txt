@@ -1,9 +1,9 @@
-yeah, {0}
+yeah, {0},
 yeah {0},
-totally {0}
-srsly {0}
-agree 100%, {0}
-agreed {0}
-{0} backs me up on this
-yah, {0} told me
+totally {0},
+srsly {0},
+agree 100% {0},
+agreed {0},
+{0} backs me up on this,
+yah, {0} told me,
 i agree {0},

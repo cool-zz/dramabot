@@ -1,5 +1,6 @@
 import asyncore, asynchat, socket
 import random
+import time
 
 
 def strip_status(nick):
@@ -64,7 +65,6 @@ class Client(asynchat.async_chat):
         # if ':' in raw_ip:
         #     self.create_socket(socket.AF_INET6, socket.SOCK_STREAM)
         # else:
-        s = socks.socksocket()
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
 
         #self.bind((self.vhost,0))
@@ -175,6 +175,10 @@ def _JOIN(self, prefix, params):
             insult = random.choice(self.txt['insults']).format(nick)
             bomb = '{} {}'.format(opening, insult)
             self.say(chan, bomb)
+            if random.random() < 0.3:
+                time.sleep(3)
+                self.say(chan, random.choice(self.txt['closings']))
+
         self.active_chans[chan].nick_list.append(nick)
      
 
@@ -224,7 +228,7 @@ def _PRIVMSG(self, prefix, params):
 
 if __name__ == '__main__':
 
-    client = Client('irc.hardchats.com', 6667, 'gaybot', ['#irclabs',])
+    client = Client('irc.hardchats.com', 6667, 'gaybot', ['#cool',])
 
     try:
         asyncore.loop()
