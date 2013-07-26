@@ -1,60 +1,61 @@
 import asyncore, asynchat, socket
+import random
+
+
+def strip_status(nick):
+    if nick[0] in '+%@&~':
+        nick = nick[1:]
+    return nick
+
+
+def log(s):
+    print("[!] {0}".format(s))
+
+
+class Channel(object):
+    """
+    Creates a channel instance for tracking user information.
+    """
+    def __init__(self, name):
+        self.name = name
+        self.nick_list = []
+
+    def __str__(self):
+        return "<{0} '{1} users'>".format(self.name, len(self.nick_list))
+
 
 class Client(asynchat.async_chat):
     """
     Creates a client connection for your drone.
     """
-    class Channel(object):
-        """
-        Creates a channel instance for tracking users and bombing.
-        """
-        def __init__(self, chan):
-            self.name = chan
-            self.user_list = []
-
-        def __str__(self):
-            return "[#{} '{} users'>".format(self.name, len(self.user_list))
-
-        # def get_users(self):
-        #     self.
-        #     if nick[0] in '+%@&~':
-        #         nickname = nickname[1:]
-
-            #return names list
-
-        # def bomb(self, target):
-        #     _bomb = '{} {}'.format(choice(OPENINGS).format(get_rand_user(),  
-        #                                 choice(INSULTS).format(target)
-        #                         )
-        #     print("BOMBING {} with {}".format(self.chan, _bomb))
-
-    def __init__(self, server, port, user):
+    def __init__(self, server, port, user, channels):
         asynchat.async_chat.__init__(self)
         self.set_terminator('\r\n')
         self.collect_incoming_data = self._collect_incoming_data
         self.server = server
-        self.port = port
-        self.user = user
+        self.port = int(port)
+        self.nick = self.real = self.user = user
         self.password = None
-        self.chan = '#cool' #will change to list later maybe
-
+        self.channels = channels
+        self.active_chans = {}
+        self.reply_chance = 1#.1
+        self.txt = self.get_text()
         try:
             self.server, self.user
         except AttributeError:
-            print("[!] Error: Not enough arguments") #add log()
+            log("ERROR: Not enough arguments") 
             exit(0)
-        self.port = int(self.port)
-        self.nick = self.real = self.user
         self.quit = "bye forever"
-        self.chans = []
         self.hooked = {
-            'PING':on_ping,
-            'KICK':on_kick,
-            'PRIVMSG':on_privmsg,
-            '433':on_nickused,
-            '001':on_connect,
-            '353':on_names,
-            'JOIN':on_join
+            'PING':_PING,
+            'KICK':_KICK,
+            'PRIVMSG':_PRIVMSG,
+            '433':_NICKUSED,
+            '001':_CONNECT,
+            '353':_NAMES,
+            'JOIN':_JOIN,
+            'PART':_PART,
+            'QUIT':_QUIT
         }
         self.connect()
 
@@ -63,23 +64,25 @@ class Client(asynchat.async_chat):
         # if ':' in raw_ip:
         #     self.create_socket(socket.AF_INET6, socket.SOCK_STREAM)
         # else:
+        s = socks.socksocket()
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+
         #self.bind((self.vhost,0))
         if self.password:
-            self.sendline('PASS %s' % self.password)
+            self.sendline('PASS {0}'.format(self.password))
         asynchat.async_chat.connect(self, (self.server, self.port))
-        print("[!] {} connecting to {} on port {}".format(self.nick, self.server, self.port)) 
+        print("[!] {0} connecting to {1} on port {2}".format(self.nick, self.server, self.port)) 
 
     def disconnect(self):
         # if self.reconn:
         #    self.reconn = False
-        self.sendline('QUIT :{}'.format(self.quit))
-        print("[!] {} disconnecting from {}".format(self.nick, self.server))
+        self.sendline('QUIT :{0}'.format(self.quit))
+        print("[!] {} disconnecting from {0}".format(self.nick, self.server))
         self.close()
 
     def handle_connect(self):
-        self.sendline('USER {} * * :{}'.format(self.user, self.real))
-        self.sendline('NICK {}'.format(self.nick))
+        self.sendline('USER {0} * * :{1}'.format(self.user, self.real))
+        self.sendline('NICK {0}'.format(self.nick))
         print("[!] {} connected!".format(self.nick))
 
     def handle_close(self):
@@ -87,7 +90,7 @@ class Client(asynchat.async_chat):
             self.connect()
 
     def sendline(self, line):
-        self.push('{}\r\n'.format(line))
+        self.push('{0}\r\n'.format(line))
 
     def hook(self, command, function):
         if command not in self.hooked:
@@ -123,70 +126,106 @@ class Client(asynchat.async_chat):
         prefix, command, params = self.parseline(data)
         self.recvline(prefix, command, params)
 
+    def get_text(self):
+        txt = {}
+        for txt_file in ('openings', 'closings', 'insults', 'links'):
+            with open('txt/{0}.txt'.format(txt_file), 'r') as f:
+                _txt = [line.rstrip('\n\r') for line in f.readlines()]
+                txt[txt_file] = _txt
+        return txt
+
     def say(self, chan, line):
-        self.sendline('PRIVMSG {} {}'.format(chan, line))
+        self.sendline('PRIVMSG {0} {1}'.format(chan, line))
 
     def partchan(self, chan, reason):
-        self.sendline('PART {} {}'.format(chan, reason))
+        self.sendline('PART {0} {1}'.format(chan, reason))
 
     def joinchan(self, chan):
-        self.sendline('JOIN {}'.format(chan))
+        self.sendline('JOIN {0}'.format(chan))
 
-def on_ping(self, prefix, params):
-    self.sendline('PONG %s' % ' '.join(params))
+
+def _PING(self, prefix, params):
+    self.sendline('PONG {0}'.format(' '.join(params)))
  
-def on_connect(self, prefix, params):
+
+def _CONNECT(self, prefix, params):
     self.connected = True
-    self.joinchan(self.chan)
-    print '[!] Joining %s' % self.chan
+    for chan in self.channels:
+        self.joinchan(chan)
+        log("Joining {0}".format(chan))
 
-def on_names(self, prefix, params):
-    nicks = params[3].split()
 
-def on_join(self, prefix, params):
+def _NAMES(self, prefix, params):
+    _nick_list = [strip_status(nick) for nick in params[3].split()]
+    _nick_list.remove(self.nick)
+    chan = params[2]
+    self.active_chans[chan].nick_list = _nick_list
+
+
+def _JOIN(self, prefix, params):
     nick = prefix.split('!')[0]
+    chan = params[0]
     if nick == self.nick:
-        channel = params[0]
-        self.chans.append(channel)
-        self.sendline('NAMES {}'.format(channel))
+        self.active_chans[chan] = Channel(chan)
+        self.sendline('NAMES {0}'.format(chan))
+    else:
+        if random.random() < self.reply_chance:
+            user = random.choice(self.active_chans[chan].nick_list)
+            opening = random.choice(self.txt['openings']).format(user)
+            insult = random.choice(self.txt['insults']).format(nick)
+            bomb = '{} {}'.format(opening, insult)
+            self.say(chan, bomb)
+        self.active_chans[chan].nick_list.append(nick)
      
-def on_kick(self, prefix, params):
+
+def _KICK(self, prefix, params):
     nick = prefix.split('!')[0]
-    channel = params[0]
-    print "[!] %s was kicked from %s" % (nick, channel)
+    chan = params[0]
+    if nick == self.nick:
+        log("You were kicked from {0}".format(chan))
+    else:
+        self.active_chans[chan].nick_list.remove(nick)
+
+
+def _PART(self, prefix, params):
+    nick = prefix.split('!')[0]
+    chan = params[0]
+    if nick == self.nick:
+        log("You haved parted {0}".format(chan))
+    # print("[!] {0} was kicked from {1}".format(nick, channel))
+    else:
+        self.active_chans[chan].nick_list.remove(nick)
+
+
+def _QUIT(self, prefix, params):
+    nick = prefix.split('!')[0]
+    chan = params[0]
+    if nick == self.nick:
+        log("You haved quit")
+    else:
+        self.active_chans[chan].nick_list.remove(nick)
+
  
-def on_nickused(self, prefix, params):
-    self.sendline('NICK %s_' % self.nick)
+def _NICKUSED(self, prefix, params):
+
+    self.sendline('NICK {}_'.format(self.nick))
+    log("Nick {0} in use... changing nick to {0}_".format(self.nick))
     
 
-def on_privmsg(self, prefix, params):
+def _PRIVMSG(self, prefix, params):
     nick = prefix.split('!')[0]
-    channel = params[0]
+    chan = params[0]
     msg = params[1].split()
     trig_char = msg[0][0]
     chan_msg = msg[0:]
-    # if (self.master and trig_char == '@'):
-    #     cmd = msg[0][1:]
-    #     data = msg[1:]
-    #     if cmd == 'reload' and nick == self.owner:
-    #         reload(cmds)
-    #         self.commands = cmds.RelayCmds()
-    #         self.say(channel, 
-    #                 '13,01[00,01Success13,01] reloaded')
-    #     elif cmd in self.commands.triggers.keys():
-    #         res = self.commands.triggers.get(cmd)(self, nick, channel, data)
-    #     else:
-    #         self.say(channel, 
-    #                 '13,01[00,01Error13,01] not found')
-    # if self.receiver and self.running:
-    #     chan_msg = ' '.join(chan_msg)
-    #     relay_msg = '%s,01[00,01%s%s,01] <%s> %s' % \
-    #                 (self.color, channel, self.color, nick, chan_msg)
-    #     self.client.say(self.home_chan, relay_msg)
+    if ('http://' or 'https://') in chan_msg:
+        self.say(chan, random.choice(self.txt['links']))
+
 
 if __name__ == '__main__':
-    #options = {}
-    drone = Client('irc.hardchats.com', 6667, 'lolll')
+
+    client = Client('irc.hardchats.com', 6667, 'gaybot', ['#irclabs',])
+
     try:
         asyncore.loop()
     except KeyboardInterrupt:
