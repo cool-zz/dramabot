@@ -41,6 +41,7 @@ class Client(asynchat.async_chat):
         self.active_chans = {}
         self.reply_chance = 1#.1
         self.txt = self.get_text()
+        #self.reconn = False
         try:
             self.server, self.user
         except AttributeError:
@@ -83,11 +84,12 @@ class Client(asynchat.async_chat):
     def handle_connect(self):
         self.sendline('USER {0} * * :{1}'.format(self.user, self.real))
         self.sendline('NICK {0}'.format(self.nick))
-        print("[!] {} connected!".format(self.nick))
+        print("[!] {0} connected!".format(self.nick))
 
     def handle_close(self):
-        if self.reconn:
-            self.connect()
+        pass
+        # if self.reconn:
+        #     self.connect()
 
     def sendline(self, line):
         self.push('{0}\r\n'.format(line))
@@ -170,14 +172,17 @@ def _JOIN(self, prefix, params):
         self.sendline('NAMES {0}'.format(chan))
     else:
         if random.random() < self.reply_chance:
+            #try:
             user = random.choice(self.active_chans[chan].nick_list)
             opening = random.choice(self.txt['openings']).format(user)
             insult = random.choice(self.txt['insults']).format(nick)
-            bomb = '{} {}'.format(opening, insult)
+            bomb = '{0} {1}'.format(opening, insult)
             self.say(chan, bomb)
             if random.random() < 0.3:
-                time.sleep(3)
+                time.sleep(2.5)
                 self.say(chan, random.choice(self.txt['closings']))
+            # except:
+            #     log("No users in channel to select")
 
         self.active_chans[chan].nick_list.append(nick)
      
@@ -203,11 +208,12 @@ def _PART(self, prefix, params):
 
 def _QUIT(self, prefix, params):
     nick = prefix.split('!')[0]
-    chan = params[0]
     if nick == self.nick:
         log("You haved quit")
     else:
-        self.active_chans[chan].nick_list.remove(nick)
+        for chan in self.active_chans.itervalues():
+            if nick in chan.nick_list:
+                chan.nick_list.remove(nick)
 
  
 def _NICKUSED(self, prefix, params):
@@ -228,7 +234,7 @@ def _PRIVMSG(self, prefix, params):
 
 if __name__ == '__main__':
 
-    client = Client('irc.hardchats.com', 6667, 'gaybot', ['#cool',])
+    client = Client('irc.hardchats.com', 6667, 'cmurda', ['#cool',])
 
     try:
         asyncore.loop()
