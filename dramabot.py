@@ -221,11 +221,14 @@ def _PRIVMSG(self, prefix, params):
     nick = prefix.split('!')[0]
     chan = params[0]
     msg = params[1].split()
+    chan_msg = ' '.join(msg[0:])
     trig_char = msg[0][0]
-    chan_msg = msg[0:]
-    if ('http://' or 'https://') in chan_msg:
+    if chan_msg.find("http:"):
         self.say(chan, random.choice(self.txt['links']))
-
+    # if (trig_char == "@" and nick == self.owner):
+    #     cmd = msg[1]
+    #     if cmd == "reload":
+    #         reload
 
 if __name__ == '__main__':
 
