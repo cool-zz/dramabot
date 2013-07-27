@@ -6,7 +6,7 @@ Rewrite of the original dramabot.
 
 # Todo
 
-Lots of shit.
+- Prox support.
 
 # License
 

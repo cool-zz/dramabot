@@ -40,6 +40,7 @@ class Client(asynchat.async_chat):
         self.channels = channels
         self.active_chans = {}
         self.reply_chance = 1#.1
+        self.follow_up_chance = 0.4
         self.txt = self.get_text()
         #self.reconn = False
         try:
@@ -67,7 +68,6 @@ class Client(asynchat.async_chat):
         #     self.create_socket(socket.AF_INET6, socket.SOCK_STREAM)
         # else:
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-
         #self.bind((self.vhost,0))
         if self.password:
             self.sendline('PASS {0}'.format(self.password))
@@ -172,18 +172,14 @@ def _JOIN(self, prefix, params):
         self.sendline('NAMES {0}'.format(chan))
     else:
         if random.random() < self.reply_chance:
-            #try:
             user = random.choice(self.active_chans[chan].nick_list)
             opening = random.choice(self.txt['openings']).format(user)
             insult = random.choice(self.txt['insults']).format(nick)
             bomb = '{0} {1}'.format(opening, insult)
             self.say(chan, bomb)
-            if random.random() < 0.3:
+            if random.random() < self.follow_up_chance:
                 time.sleep(2.5)
                 self.say(chan, random.choice(self.txt['closings']))
-            # except:
-            #     log("No users in channel to select")
-
         self.active_chans[chan].nick_list.append(nick)
      
 
@@ -201,7 +197,6 @@ def _PART(self, prefix, params):
     chan = params[0]
     if nick == self.nick:
         log("You haved parted {0}".format(chan))
-    # print("[!] {0} was kicked from {1}".format(nick, channel))
     else:
         self.active_chans[chan].nick_list.remove(nick)
 
